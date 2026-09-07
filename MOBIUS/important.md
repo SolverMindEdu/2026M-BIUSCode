@@ -1,0 +1,3 @@
+Add omegaRadiansPerSecond for the megatag2 rejection
+Make sure turret has a maximum turn angle like no matter what the turret will never spin past this cause that will break the e chain instead it will spin back to like the angle through the other direction
+balls might sometimes be already in the feeder or the bely make the sure the shooter still shoots sometimes it just doesnt run the ball path anymore
