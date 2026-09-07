@@ -32,13 +32,17 @@ public class Shooter extends SubsystemBase {
   }
 
   private static final LoggedTunableNumber tunableP = new LoggedTunableNumber("Shooter/kP", kP);
-  private static final LoggedTunableNumber tunableTorque =
-      new LoggedTunableNumber("Shooter/PeakTorqueAmps", kPeakTorqueAmps);
+  private static final LoggedTunableNumber tunableS = new LoggedTunableNumber("Shooter/kS", kS);
+  private static final LoggedTunableNumber tunableV = new LoggedTunableNumber("Shooter/kV", kV);
 
   @Override
   public void periodic() {
     LoggedTunableNumber.ifChanged(
-        hashCode(), values -> io.setGains(values[0], values[1]), tunableP, tunableTorque);
+        hashCode(),
+        v -> io.setGains(v[0], v[1], v[2]),
+        tunableP,
+        tunableS,
+        tunableV);
     io.updateInputs(inputs);
     Logger.processInputs("Shooter", inputs);
     Logger.recordOutput("Shooter/AtSpeed", commandedRpm > 0.0 && atSpeed(commandedRpm));

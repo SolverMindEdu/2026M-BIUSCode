@@ -26,5 +26,5 @@ public interface ShooterIO {
 
   public default void stop() {}
 
-  public default void setGains(double kP, double peakTorqueAmps) {}
+  public default void setGains(double kP, double kS, double kV) {}
 }

@@ -25,7 +25,7 @@ public interface BallPathIO {
 
   public default void setSingulatorBottom(double percent) {}
 
-  public default void setFeed(double percent) {}
+  public default void setFeedRotPerSec(double rotPerSec) {}
 
   public default void stop() {}
 }

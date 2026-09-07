@@ -36,10 +36,10 @@ public final class ShooterConstants {
   public static final double kStatorAmps = 120.0;
   public static final double kSupplyAmps = 80.0;
 
-  public static final double kV = 0.0;
-  public static final double kS = 0.0;
-
-  public static final double kP = 999999.0;
-
-  public static final double kPeakTorqueAmps = 80.0;
+  public static final double kS = 0.272;
+  public static final double kV = 0.1723;
+  public static final double kA = 0.0;
+  public static final double kP = 0.4;
+  public static final double kI = 0.0;
+  public static final double kD = 0.0;
 }

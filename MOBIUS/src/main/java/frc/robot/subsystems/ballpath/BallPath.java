@@ -82,7 +82,7 @@ public class BallPath extends SubsystemBase {
           io.setVerticalRoller(0.0);
           io.setSingulatorTop(0.0);
           io.setSingulatorBottom(0.0);
-          io.setFeed(0.0);
+          io.setFeedRotPerSec(0.0);
           Logger.recordOutput("BallPath/LoadStalled", loadStalled);
         })
         .beforeStarting(
@@ -114,7 +114,7 @@ public class BallPath extends SubsystemBase {
             kVerticalRollerPercent,
             kSingulatorTopPercent,
             kSingulatorBottomPercent,
-            () -> kFeedPercent)
+            () -> kFeedRotPerSec)
         .beforeStarting(() -> pulseStartSecs = Logger.getTimestamp() / 1.0e6)
         .withName("BallPathRunAll");
   }
@@ -141,7 +141,7 @@ public class BallPath extends SubsystemBase {
           io.setVerticalRoller(withJamClear(1, verticalRoller));
           io.setSingulatorTop(withJamClear(2, singulatorTop));
           io.setSingulatorBottom(withJamClear(3, singulatorBottom));
-          io.setFeed(withJamClear(4, feed.getAsDouble()));
+          io.setFeedRotPerSec(withJamClear(4, feed.getAsDouble()));
           Logger.recordOutput("BallPath/IndexerDemand", indexer.getAsDouble());
         });
   }

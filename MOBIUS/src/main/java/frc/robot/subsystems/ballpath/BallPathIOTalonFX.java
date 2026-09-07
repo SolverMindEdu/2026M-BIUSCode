@@ -7,7 +7,9 @@ package frc.robot.subsystems.ballpath;
 import static frc.robot.subsystems.ballpath.BallPathConstants.*;
 
 import com.ctre.phoenix6.BaseStatusSignal;
+import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import frc.robot.util.PhoenixUtil;
@@ -26,6 +28,7 @@ public class BallPathIOTalonFX implements BallPathIO {
   private final StatusSignal<?>[] velocity = new StatusSignal<?>[5];
 
   private final VoltageOut request = new VoltageOut(0.0);
+  private final VelocityVoltage velocityRequest = new VelocityVoltage(0.0);
 
   // Voltage rather than duty cycle: a duty cycle is a fraction of whatever the battery happens to
   // be, so every roller slows down exactly when the shooter and drive are pulling hardest. The
@@ -39,6 +42,12 @@ public class BallPathIOTalonFX implements BallPathIO {
       velocity[i] = all[i].getVelocity();
       PhoenixUtil.publishRollerSignals(all[i], volts[i], current[i], velocity[i]);
     }
+
+    var feedGains = new Slot0Configs();
+    feedGains.kS = kFeedKs;
+    feedGains.kV = kFeedKv;
+    feedGains.kP = kFeedKp;
+    feed.getConfigurator().apply(feedGains);
   }
 
   @Override
@@ -72,8 +81,9 @@ public class BallPathIOTalonFX implements BallPathIO {
   }
 
   @Override
-  public void setFeed(double percent) {
-    feed.setControl(request.withOutput(percent * kNominalVolts));
+  public void setFeedRotPerSec(double rotPerSec) {
+    feed.setControl(
+        rotPerSec == 0.0 ? request.withOutput(0.0) : velocityRequest.withVelocity(rotPerSec));
   }
 
   @Override

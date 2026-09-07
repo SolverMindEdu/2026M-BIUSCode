@@ -10,9 +10,8 @@ import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.configs.TorqueCurrentConfigs;
 import com.ctre.phoenix6.controls.NeutralOut;
-import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
+import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.robot.util.PhoenixUtil;
@@ -29,7 +28,7 @@ public class ShooterIOTalonFX implements ShooterIO {
   private final StatusSignal<?> leftCurrent = left.getStatorCurrent();
   private final StatusSignal<?> rightCurrent = right.getStatorCurrent();
 
-  private final VelocityTorqueCurrentFOC velocityRequest = new VelocityTorqueCurrentFOC(0.0);
+  private final VelocityVoltage velocityRequest = new VelocityVoltage(0.0);
   private final NeutralOut neutralRequest = new NeutralOut();
 
   public ShooterIOTalonFX() {
@@ -44,11 +43,10 @@ public class ShooterIOTalonFX implements ShooterIO {
 
     config.Slot0.kS = kS;
     config.Slot0.kV = kV;
+    config.Slot0.kA = kA;
     config.Slot0.kP = kP;
-
-    config.TorqueCurrent.PeakForwardTorqueCurrent = kPeakTorqueAmps;
-    config.TorqueCurrent.PeakReverseTorqueCurrent = 0.0;
-    config.MotorOutput.PeakReverseDutyCycle = 0.0;
+    config.Slot0.kI = kI;
+    config.Slot0.kD = kD;
 
     config.MotorOutput.Inverted = PhoenixUtil.direction(kLeftInverted);
     left.getConfigurator().apply(config);
@@ -95,18 +93,16 @@ public class ShooterIOTalonFX implements ShooterIO {
   }
 
   @Override
-  public void setGains(double kP, double peakTorqueAmps) {
+  public void setGains(double kP, double kS, double kV) {
     var slot = new Slot0Configs();
     slot.kS = kS;
     slot.kV = kV;
+    slot.kA = kA;
     slot.kP = kP;
+    slot.kI = kI;
+    slot.kD = kD;
     left.getConfigurator().apply(slot);
     right.getConfigurator().apply(slot);
-    var torque = new TorqueCurrentConfigs();
-    torque.PeakForwardTorqueCurrent = peakTorqueAmps;
-    torque.PeakReverseTorqueCurrent = 0.0;
-    left.getConfigurator().apply(torque);
-    right.getConfigurator().apply(torque);
   }
 
   @Override

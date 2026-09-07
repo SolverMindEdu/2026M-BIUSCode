@@ -36,7 +36,16 @@ public final class BallPathConstants {
   public static final double kSingulatorTopPercent = 0.95;
 
   public static final double kSingulatorBottomPercent = 0.90;
-  public static final double kFeedPercent = 0.98;
+  // The kicker runs closed-loop: its speed sets how fast the ball enters the flywheel, and open
+  // loop that varied with load on every shot.
+
+  // TODO(10015): run the ball path, read BallPath/VelocityRotPerSec index 4 while it is up to
+  // speed, and put that number here. kV is then 11.76 / that value.
+  public static final double kFeedRotPerSec = 100.0;
+
+  public static final double kFeedKs = 0.15;
+  public static final double kFeedKv = 0.1176;
+  public static final double kFeedKp = 0.3;
 
   // --- Loading while intaking ------------------------------------------------------------------
 
