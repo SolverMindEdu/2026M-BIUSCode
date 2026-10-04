@@ -8,6 +8,7 @@ import static frc.robot.subsystems.intake.IntakeRollerConstants.*;
 
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import frc.robot.util.PhoenixUtil;
@@ -18,11 +19,13 @@ public class IntakeRollerIOTalonFX implements IntakeRollerIO {
 
   private final StatusSignal<?> appliedVolts = motor.getMotorVoltage();
   private final StatusSignal<?> statorCurrent = motor.getStatorCurrent();
+  private final StatusSignal<?> supplyCurrent = motor.getSupplyCurrent();
   private final StatusSignal<?> velocity = motor.getVelocity();
 
   private final DutyCycleOut request = new DutyCycleOut(0.0);
 
   public IntakeRollerIOTalonFX() {
+    PhoenixUtil.publishMonitorSignals(supplyCurrent);
     PhoenixUtil.publishRollerSignals(motor, appliedVolts, statorCurrent, velocity);
   }
 
@@ -32,12 +35,28 @@ public class IntakeRollerIOTalonFX implements IntakeRollerIO {
         BaseStatusSignal.refreshAll(appliedVolts, statorCurrent, velocity).isOK();
     inputs.appliedVolts = appliedVolts.getValueAsDouble();
     inputs.statorCurrentAmps = statorCurrent.getValueAsDouble();
+    // Refreshed on its own: it arrives at the monitoring rate, and a slow analysis signal
+    // must not be able to report the motor as disconnected.
+    supplyCurrent.refresh();
+    inputs.supplyCurrentAmps = supplyCurrent.getValueAsDouble();
     inputs.velocityRotPerSec = velocity.getValueAsDouble();
   }
 
   @Override
   public void setPercent(double percent) {
     motor.setControl(request.withOutput(percent));
+  }
+
+  @Override
+  public void setStatorLimit(double amps) {
+    motor
+        .getConfigurator()
+        .apply(
+            new CurrentLimitsConfigs()
+                .withStatorCurrentLimit(amps)
+                .withStatorCurrentLimitEnable(true)
+                .withSupplyCurrentLimit(kSupplyAmps)
+                .withSupplyCurrentLimitEnable(true));
   }
 
   @Override

@@ -136,4 +136,13 @@ class TurretMathTest {
           "clamp returned " + result + ", which is not a travel limit");
     }
   }
+
+  @Test
+  void referenceKeepsACommittedWrapAtTheTiePoint() {
+    // -50 and 310 both point the same way and are equally far from 130; the previous goal decides.
+    var committed = TurretMath.resolveSetpoint(-50.0, 130.0, -300.0, 330.0, 310.0);
+    assertEquals(310.0, committed.getAsDouble(), kEpsilon);
+    var other = TurretMath.resolveSetpoint(-50.0, 130.0, -300.0, 330.0, -50.0);
+    assertEquals(-50.0, other.getAsDouble(), kEpsilon);
+  }
 }

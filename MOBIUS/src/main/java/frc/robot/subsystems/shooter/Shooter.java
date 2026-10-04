@@ -66,8 +66,15 @@ public class Shooter extends SubsystemBase {
       offTargetSinceSecs = now;
     }
 
-    Logger.recordOutput("Shooter/LeftErrorRpm", inputs.leftRpm - kTargetRpm);
-    Logger.recordOutput("Shooter/RightErrorRpm", inputs.rightRpm - kTargetRpm);
+    Logger.recordOutput("Shooter/LeftErrorRpm", inputs.leftRpm - commandedRpm);
+    Logger.recordOutput("Shooter/RightErrorRpm", inputs.rightRpm - commandedRpm);
+
+    Logger.recordOutput(
+        "Shooter/TotalSupplyCurrentAmps",
+        inputs.leftSupplyCurrentAmps + inputs.rightSupplyCurrentAmps);
+    Logger.recordOutput(
+        "Shooter/OffTargetDurationSecs",
+        Double.isNaN(offTargetSinceSecs) ? 0.0 : now - offTargetSinceSecs);
 
     boolean stalling =
         inputs.leftStatorCurrentAmps > kStallCurrentAmps
@@ -86,8 +93,16 @@ public class Shooter extends SubsystemBase {
           commandedRpm = rpm.getAsDouble();
           io.setRpm(commandedRpm);
         })
-        .finallyDo(() -> commandedRpm = 0.0)
+        .finallyDo(() -> {
+          commandedRpm = 0.0;
+          atSpeedSinceSecs = Double.NaN;
+          io.stop();
+        })
         .withName("ShooterSetRpm");
+  }
+
+  public boolean isConnected() {
+    return inputs.leftConnected && inputs.rightConnected;
   }
 
   public boolean readyToFeed() {
@@ -99,4 +114,9 @@ public class Shooter extends SubsystemBase {
     return Math.abs(inputs.leftRpm - rpm) <= kToleranceRpm
         && Math.abs(inputs.rightRpm - rpm) <= kToleranceRpm;
   }
+  /** Both flywheels together, which is what the battery sees from this mechanism. */
+  public double supplyCurrentAmps() {
+    return inputs.leftSupplyCurrentAmps + inputs.rightSupplyCurrentAmps;
+  }
+
 }

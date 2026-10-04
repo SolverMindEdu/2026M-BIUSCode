@@ -13,10 +13,9 @@ import org.littletonrobotics.junction.Logger;
 public class IntakeRoller extends SubsystemBase {
   private final IntakeRollerIO io;
   private final IntakeRollerIOInputsAutoLogged inputs = new IntakeRollerIOInputsAutoLogged();
-
   public IntakeRoller(IntakeRollerIO io) {
     this.io = io;
-    setDefaultCommand(run(io::stop).withName("IntakeRollerIdle"));
+    setDefaultCommand(idle());
   }
 
   @Override
@@ -29,7 +28,27 @@ public class IntakeRoller extends SubsystemBase {
     return run(() -> io.setPercent(kIntakePercent)).withName("IntakeRollerRun");
   }
 
-  public Command shootAssist() {
-    return run(() -> io.setPercent(kShootPercent)).withName("IntakeRollerShootAssist");
+  public boolean isConnected() {
+    return inputs.connected;
   }
+
+  /** Rollers off, without giving up the subsystem. */
+  public Command idle() {
+    return run(io::stop).withName("IntakeRollerIdle");
+  }
+
+  public Command purge() {
+    return run(() -> io.setPercent(-kPurgePercent)).withName("IntakeRollerPurge");
+  }
+
+  public Command shootAssist() {
+    return run(() -> io.setPercent(kShootPercent)).beforeStarting(() -> io.setStatorLimit(kShootStatorAmps))
+        .finallyDo(() -> io.setStatorLimit(kStatorAmps))
+        .withName("IntakeRollerShootAssist");
+  }
+  /** What the battery pays for this mechanism, for PowerMonitor. */
+  public double supplyCurrentAmps() {
+    return inputs.supplyCurrentAmps;
+  }
+
 }

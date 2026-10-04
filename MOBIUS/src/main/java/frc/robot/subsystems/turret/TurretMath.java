@@ -12,19 +12,29 @@ public final class TurretMath {
 
   public static OptionalDouble resolveSetpoint(
       double desiredDegrees, double currentDegrees, double minDegrees, double maxDegrees) {
+    return resolveSetpoint(desiredDegrees, currentDegrees, minDegrees, maxDegrees, currentDegrees);
+  }
+
+  /** Picks the legal wrap nearest referenceDegrees, so a committed move is not re-decided mid-slew. */
+  public static OptionalDouble resolveSetpoint(
+      double desiredDegrees,
+      double currentDegrees,
+      double minDegrees,
+      double maxDegrees,
+      double referenceDegrees) {
     double nearest =
         currentDegrees + MathUtil.inputModulus(desiredDegrees - currentDegrees, -180.0, 180.0);
 
     double best = Double.NaN;
-    double bestTravel = Double.POSITIVE_INFINITY;
+    double bestDistance = Double.POSITIVE_INFINITY;
     for (int wrap = -2; wrap <= 2; wrap++) {
       double candidate = nearest + wrap * 360.0;
       if (candidate < minDegrees || candidate > maxDegrees) {
         continue;
       }
-      double travel = Math.abs(candidate - currentDegrees);
-      if (travel < bestTravel) {
-        bestTravel = travel;
+      double distance = Math.abs(candidate - referenceDegrees);
+      if (distance < bestDistance) {
+        bestDistance = distance;
         best = candidate;
       }
     }

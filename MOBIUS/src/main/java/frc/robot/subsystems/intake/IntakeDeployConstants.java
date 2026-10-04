@@ -20,7 +20,7 @@ public final class IntakeDeployConstants {
 
   public static final double kRetractRotations = 0.03;
 
-  public static final double kDeployRotations = 4.68;
+  public static final double kDeployRotations = 4.7;
 
   public static final double kLimitMarginRotations = 0.05;
 
@@ -28,9 +28,9 @@ public final class IntakeDeployConstants {
 
   public static final double kJogVolts = 1.0;
 
-  public static final double kStatorAmps = 100.0;
+  public static final double kStatorAmps = 70.0;
 
-  public static final double kSupplyAmps = 60.0;
+  public static final double kSupplyAmps = 35.0;
 
   // --- Motion profile and gains ---------------------------------------------------------------
 
@@ -54,11 +54,19 @@ public final class IntakeDeployConstants {
 
   public static final double kD = 0.0;
 
-  public static final double kToleranceRotations = 0.1;
+  /** Tight: a deploy is only done when the intake is actually all the way out. */
+  public static final double kToleranceRotations = 0.02;
+
+  /** Looser, and only for deciding the intake is home enough to release the motor. */
+  public static final double kRetractHomeRotations = 0.1;
 
   // --- Frontal impact compliance -------------------------------------------------------------
 
-  public static final double kPeakDeployDutyCycle = 0.75;
+  /**
+   * Full authority: the intake has to reach the stop against a stretching net, and a cap here was
+   * leaving it short. Compliance under a frontal hit is given up in exchange.
+   */
+  public static final double kPeakDeployDutyCycle = 1.0;
 
   public static final double kPeakRetractDutyCycle = 1.0;
 
@@ -68,18 +76,27 @@ public final class IntakeDeployConstants {
 
   public static final double kCollisionVelocityRotPerSec = 1.0;
 
-  /** Loops of stalling on the way in before the intake settles for where it got to, at 20 ms each. */
-  public static final int kRetractSettleLoops = 25;
+  /** Loops of stalling before the intake settles for where it got to, at 20 ms each. */
+  public static final int kSettleLoops = 25;
 
   /**
-   * Only settle once the intake is nearly home. Stalling far from the target is the intake failing
+   * Only settle once the intake is nearly at its target. Stalling far from it is the intake failing
    * to break loose, and giving up there latches it wherever it started.
    */
-  public static final double kRetractSettleWindowRotations = 0.5;
+  public static final double kSettleWindowRotations = 0.5;
 
-  /** How far in the intake comes on each shooting pulse, measured from the deployed position. */
-  public static final double kShootPulseLowRotations = 4.5;
+  /**
+   * Deploy gets a wider window than retract. Retract lands on a hard stop in a repeatable place;
+   * deploy pushes into a net that stretches, so where it runs out of travel moves around, and a
+   * stall a rotation short of kDeployRotations is still the intake being out, not a jam.
+   */
+  public static final double kDeploySettleWindowRotations = 1.2;
 
-  /** Time at each end of the shooting pulse. */
-  public static final double kShootPulsePeriodSecs = 0.15;
+  // Shooting slowly walks the intake home rather than bobbing: about 3 s end to end.
+  public static final double kShootStowCruiseRotPerSec = 1.8;
+
+  public static final double kShootStowAccelRotPerSecSq = 4.0;
+
+  /** Stator limit while stowing during a shot. Deploy and retract keep the full limit. */
+  public static final double kShootStowStatorAmps = 40.0;
 }

@@ -17,7 +17,6 @@ public final class HoodConstants {
 
   public static final boolean kInverted = false;
 
-  public static final double kDeployDegrees = 200.0;
   public static final double kStowDegrees = 0.0;
 
   // --- Travel ---------------------------------------------------------------------------------
@@ -30,12 +29,21 @@ public final class HoodConstants {
 
   public static final double kLimitMarginDegrees = 5.0;
 
-  public static final double kJogVolts = 1.0;
+
 
   public static final double kStatorAmps = 40.0;
-  public static final double kSupplyAmps = 40.0;
+  public static final double kSupplyAmps = 25.0;
 
   public static final double kToleranceDegrees = 10.0;
+
+  /** Below this the hood counts as stopped, for deciding it has run out of travel. */
+  public static final double kStoppedDegPerSec = 5.0;
+
+  /** Above this it is pushing against a stop rather than coasting to a halt. */
+  public static final double kStopCurrentAmps = 20.0;
+
+  /** Loops of not moving before a target it cannot reach counts as reached, at 20 ms each. */
+  public static final int kTravelLimitLoops = 10;
 
   // TODO(10015) if the hood is gravity-loaded, unlike
 
@@ -51,7 +59,13 @@ public final class HoodConstants {
 
   public static final double kV = 0.6;
 
-  public static final double kP = 15.0;
+  /** Volts per hood ROTATION of error, so a 5 degree miss asks for 1.4 V. 15 gave 0.2 V. */
+  public static final double kP = 100.0;
 
-  public static final double kD = 0.0;
+  /**
+   * Volts per rotation-per-second of error rate. With kD at zero the loop had no damping at all,
+   * so a ball hitting the hood rang against kP instead of settling. Raise until the ringing after
+   * a shot stops; back off if the hood buzzes while holding still.
+   */
+  public static final double kD = 1.5;
 }

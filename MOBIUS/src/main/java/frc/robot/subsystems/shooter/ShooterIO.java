@@ -16,6 +16,9 @@ public interface ShooterIO {
     public double leftAppliedVolts = 0.0;
     public double rightAppliedVolts = 0.0;
     public double leftSupplyVolts = 0.0;
+    public double rightSupplyVolts = 0.0;
+    public double leftSupplyCurrentAmps = 0.0;
+    public double rightSupplyCurrentAmps = 0.0;
     public double leftStatorCurrentAmps = 0.0;
     public double rightStatorCurrentAmps = 0.0;
   }

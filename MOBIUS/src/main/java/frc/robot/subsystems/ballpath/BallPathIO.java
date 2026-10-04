@@ -12,6 +12,7 @@ public interface BallPathIO {
     public boolean[] connected = new boolean[5];
     public double[] appliedVolts = new double[5];
     public double[] statorCurrentAmps = new double[5];
+    public double[] supplyCurrentAmps = new double[5];
     public double[] velocityRotPerSec = new double[5];
   }
 

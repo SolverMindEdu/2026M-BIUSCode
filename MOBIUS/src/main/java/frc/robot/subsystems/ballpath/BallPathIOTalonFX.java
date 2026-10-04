@@ -17,14 +17,31 @@ import frc.robot.util.PhoenixUtil;
 public class BallPathIOTalonFX implements BallPathIO {
   private final TalonFX indexer = PhoenixUtil.configureRoller(kIndexerId, kCanBus, kIndexerInverted, kStatorAmps, kSupplyAmps);
   private final TalonFX vertical = PhoenixUtil.configureRoller(kVerticalRollerId, kCanBus, kVerticalRollerInverted, kStatorAmps, kSupplyAmps);
-  private final TalonFX singulatorTop = PhoenixUtil.configureRoller(kSingulatorTopId, kCanBus, kSingulatorTopInverted, kStatorAmps, kSupplyAmps);
-  private final TalonFX singulatorBottom = PhoenixUtil.configureRoller(kSingulatorBottomId, kCanBus, kSingulatorBottomInverted, kStatorAmps, kSupplyAmps);
+  private final TalonFX singulatorTop =
+      PhoenixUtil.configureRoller(
+          kSingulatorTopId,
+          kCanBus,
+          kSingulatorTopInverted,
+          kSingulatorStatorAmps,
+          kSingulatorSupplyAmps,
+          kSingulatorSupplyLowerAmps,
+          kSingulatorSupplyLowerTimeSecs);
+  private final TalonFX singulatorBottom =
+      PhoenixUtil.configureRoller(
+          kSingulatorBottomId,
+          kCanBus,
+          kSingulatorBottomInverted,
+          kSingulatorStatorAmps,
+          kSingulatorSupplyAmps,
+          kSingulatorSupplyLowerAmps,
+          kSingulatorSupplyLowerTimeSecs);
   private final TalonFX feed = PhoenixUtil.configureRoller(kFeedId, kCanBus, kFeedInverted, kStatorAmps, kSupplyAmps);
 
   private final TalonFX[] all = {indexer, vertical, singulatorTop, singulatorBottom, feed};
 
   private final StatusSignal<?>[] volts = new StatusSignal<?>[5];
   private final StatusSignal<?>[] current = new StatusSignal<?>[5];
+  private final StatusSignal<?>[] supply = new StatusSignal<?>[5];
   private final StatusSignal<?>[] velocity = new StatusSignal<?>[5];
 
   private final VoltageOut request = new VoltageOut(0.0);
@@ -40,6 +57,8 @@ public class BallPathIOTalonFX implements BallPathIO {
       volts[i] = all[i].getMotorVoltage();
       current[i] = all[i].getStatorCurrent();
       velocity[i] = all[i].getVelocity();
+      supply[i] = all[i].getSupplyCurrent();
+      PhoenixUtil.publishMonitorSignals(supply[i]);
       PhoenixUtil.publishRollerSignals(all[i], volts[i], current[i], velocity[i]);
     }
 
@@ -56,6 +75,10 @@ public class BallPathIOTalonFX implements BallPathIO {
       inputs.connected[i] = BaseStatusSignal.refreshAll(volts[i], current[i], velocity[i]).isOK();
       inputs.appliedVolts[i] = volts[i].getValueAsDouble();
       inputs.statorCurrentAmps[i] = current[i].getValueAsDouble();
+      // Refreshed on its own: it arrives at the monitoring rate, and a slow analysis
+      // signal must not be able to report the motor as disconnected.
+      supply[i].refresh();
+      inputs.supplyCurrentAmps[i] = supply[i].getValueAsDouble();
       inputs.velocityRotPerSec[i] = velocity[i].getValueAsDouble();
     }
   }

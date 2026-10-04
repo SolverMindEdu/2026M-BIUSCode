@@ -22,11 +22,35 @@ public final class PhoenixUtil {
   /** Configures a coasting, current-limited roller and returns it ready to use. */
   public static TalonFX configureRoller(
       int id, CANBus bus, boolean inverted, double statorAmps, double supplyAmps) {
+    return configureRoller(id, bus, inverted, statorAmps, supplyAmps, supplyAmps, 0.0);
+  }
+
+  /**
+   * The same, with a supply limit that backs off once it has been held for a while.
+   *
+   * <p>Phoenix allows the supply up to supplyAmps, and if the limit has been active continuously
+   * for supplyLowerTimeSecs it drops the ceiling to supplyLowerAmps. That separates the two things
+   * a roller needs: enough current to break a stalled column loose, and a sustained draw the
+   * battery can carry once it is clear that the motor is not going to win. A roller that is simply
+   * working never reaches the limit and never sees the reduction.
+   *
+   * <p>Pass supplyLowerAmps equal to supplyAmps with a zero time for a flat limit.
+   */
+  public static TalonFX configureRoller(
+      int id,
+      CANBus bus,
+      boolean inverted,
+      double statorAmps,
+      double supplyAmps,
+      double supplyLowerAmps,
+      double supplyLowerTimeSecs) {
     TalonFX motor = new TalonFX(id, bus);
     var config = new TalonFXConfiguration();
     config.CurrentLimits.StatorCurrentLimit = statorAmps;
     config.CurrentLimits.StatorCurrentLimitEnable = true;
     config.CurrentLimits.SupplyCurrentLimit = supplyAmps;
+    config.CurrentLimits.SupplyCurrentLowerLimit = supplyLowerAmps;
+    config.CurrentLimits.SupplyCurrentLowerTime = supplyLowerTimeSecs;
     config.CurrentLimits.SupplyCurrentLimitEnable = true;
     config.MotorOutput.NeutralMode = NeutralModeValue.Coast;
     config.MotorOutput.Inverted = direction(inverted);
@@ -38,5 +62,18 @@ public final class PhoenixUtil {
   public static void publishRollerSignals(TalonFX motor, StatusSignal<?>... signals) {
     BaseStatusSignal.setUpdateFrequencyForAll(50.0, signals);
     motor.optimizeBusUtilization();
+  }
+
+  /**
+   * Rate for signals nothing controls off -- power accounting and the like. Deliberately slow:
+   * ranking what a mechanism costs needs nothing like loop rate, and the RIO is already overrunning
+   * without spending bus and CPU on frames only the log reads. Call before optimizeBusUtilization,
+   * which drops any signal that has not been asked for.
+   */
+  public static final double kMonitorHz = 20.0;
+
+  /** Sets every given signal to the monitoring rate. */
+  public static void publishMonitorSignals(StatusSignal<?>... signals) {
+    BaseStatusSignal.setUpdateFrequencyForAll(kMonitorHz, signals);
   }
 }

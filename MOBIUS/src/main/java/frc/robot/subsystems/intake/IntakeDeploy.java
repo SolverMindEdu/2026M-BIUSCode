@@ -11,7 +11,6 @@ import static edu.wpi.first.units.Units.Second;
 import static edu.wpi.first.units.Units.Volts;
 
 import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import java.util.function.DoubleSupplier;
@@ -24,10 +23,11 @@ public class IntakeDeploy extends SubsystemBase {
 
   private double commandedRotations = Double.NaN;
 
-  private int retractStallLoops = 0;
-  private boolean retractSettled = false;
-  private double retractSettledRotations = 0.0;
+  private int stallLoops = 0;
+  private boolean settled = false;
+  private double settledRotations = 0.0;
   private double lastCommandedRotations = Double.NaN;
+  private boolean atHome = false;
 
   public IntakeDeploy(IntakeDeployIO io) {
     this.io = io;
@@ -69,7 +69,7 @@ public class IntakeDeploy extends SubsystemBase {
     io.updateInputs(inputs);
     Logger.processInputs("IntakeDeploy", inputs);
 
-    updateRetractSettle();
+    updateSettle();
     Logger.recordOutput(
         "IntakeDeploy/ErrorRotations", inputs.setpointRotations - inputs.positionRotations);
     Logger.recordOutput("IntakeDeploy/AtGoal", atGoal());
@@ -82,75 +82,96 @@ public class IntakeDeploy extends SubsystemBase {
     return kDeployRotations != kRetractRotations;
   }
 
-  private void updateRetractSettle() {
+  private void updateSettle() {
+    // Both directions push hard into a hard stop, and neither may lean on it forever: at kP = 25
+    // a tenth of a rotation of standing error is 2.5 V into a motor that cannot move. After a
+    // stall the setpoint becomes where it actually got to, which drops the error, and the output
+    // with it, to zero. A ball knocking it off that position still gets pushed back.
+    double shortfall = Math.abs(commandedRotations - inputs.positionRotations);
     boolean deploying = commandedRotations > inputs.positionRotations;
-
-    // Retracting pushes hard, but must not lean on a stop forever. After a stall it accepts where
-    // it got to, which drops the error to zero and the output with it.
+    double window = deploying ? kDeploySettleWindowRotations : kSettleWindowRotations;
     boolean stalled =
-        !deploying
-            && !Double.isNaN(commandedRotations)
-            && !retractSettled
+        !Double.isNaN(commandedRotations)
+            && !settled
             && inputs.statorCurrentAmps > kCollisionCurrentAmps
             && Math.abs(inputs.velocityRotPerSec) < kCollisionVelocityRotPerSec
-            && Math.abs(commandedRotations - inputs.positionRotations)
-                < kRetractSettleWindowRotations;
-    retractStallLoops = stalled ? retractStallLoops + 1 : 0;
-    if (retractStallLoops >= kRetractSettleLoops) {
-      retractSettledRotations = inputs.positionRotations;
-      retractSettled = true;
-      retractStallLoops = 0;
+            && shortfall < window;
+    stallLoops = stalled ? stallLoops + 1 : 0;
+    if (stallLoops >= kSettleLoops) {
+      settledRotations = inputs.positionRotations;
+      settled = true;
+      stallLoops = 0;
+      // How far short it gave up. If a stall is not settling, this is the number the window has
+      // to clear.
+      Logger.recordOutput("IntakeDeploy/SettledShortfallRotations", shortfall);
     }
-    // Clear on any NEW command, not just a deploy: otherwise one stall latches the intake at
-    // wherever it stopped and every later retract aims there instead of at the setpoint.
-    if (deploying || commandedRotations != lastCommandedRotations) {
-      retractSettled = false;
+    // Clear on any new command: otherwise one stall latches the intake at wherever it stopped and
+    // every later move aims there instead of at the setpoint.
+    if (commandedRotations != lastCommandedRotations) {
+      settled = false;
     }
     lastCommandedRotations = commandedRotations;
 
     Logger.recordOutput("IntakeDeploy/Rebooted", inputs.rebooted);
-    Logger.recordOutput("IntakeDeploy/RetractSettled", retractSettled);
+    Logger.recordOutput("IntakeDeploy/AtHome", atHome);
+    Logger.recordOutput("IntakeDeploy/Settled", settled);
+    Logger.recordOutput("IntakeDeploy/StallLoops", stallLoops);
+    Logger.recordOutput("IntakeDeploy/ShortfallRotations", shortfall);
     Logger.recordOutput("IntakeDeploy/CommandedRotations", commandedRotations);
   }
 
   private double effectiveTarget(double target) {
     commandedRotations = target;
-    return retractSettled ? retractSettledRotations : target;
+    return settled ? settledRotations : target;
   }
 
   public Command deploy() {
-    return run(() ->
+    return runOnce(() -> atHome = false)
+        .andThen(run(() ->
             io.setPositionSetpoint(
-                effectiveTarget(kDeployRotations), kCruiseRotPerSec, kAccelRotPerSecSq))
+                effectiveTarget(kDeployRotations), kCruiseRotPerSec, kAccelRotPerSecSq)))
         .withName("IntakeDeploy");
   }
 
   public Command retract() {
-    return run(() ->
+    return run(() -> {
+          commandedRotations = kRetractRotations;
+          if (Math.abs(inputs.positionRotations - kRetractRotations) <= kRetractHomeRotations) {
+            atHome = true;
+          }
+          if (atHome) {
+            // Home on a linear intake means resting on its stop. Holding a setpoint there just
+            // grinds; the brake neutral mode keeps it put without drawing current.
+            io.stop();
+          } else {
             io.setPositionSetpoint(
                 effectiveTarget(kRetractRotations),
                 kRetractCruiseRotPerSec,
-                kRetractAccelRotPerSecSq))
+                kRetractAccelRotPerSecSq);
+          }
+        })
         .withName("IntakeRetract");
   }
 
-  private Command pulseIn() {
+  /** Walks the intake home over about 3 s while shooting, keeping fuel moving without bobbing. */
+  public Command shootStow() {
     return run(() ->
             io.setPositionSetpoint(
-                effectiveTarget(kShootPulseLowRotations), kCruiseRotPerSec, kAccelRotPerSecSq))
-        .withName("IntakeShootPulseIn");
+                effectiveTarget(kRetractRotations),
+                kShootStowCruiseRotPerSec,
+                kShootStowAccelRotPerSecSq))
+        .beforeStarting(() -> io.setStatorLimit(kShootStowStatorAmps))
+        .finallyDo(() -> io.setStatorLimit(kStatorAmps))
+        .withName("IntakeShootStow");
   }
 
-  /** Pulses just off the deployed position to keep fuel moving, from the first loop of a shot. */
-  public Command shootPulse() {
-    return Commands.repeatingSequence(
-            deploy().withTimeout(kShootPulsePeriodSecs),
-            pulseIn().withTimeout(kShootPulsePeriodSecs))
-        .withName("IntakeShootPulse");
+  public boolean isConnected() {
+    return inputs.connected;
   }
 
   public boolean atGoal() {
-    return Math.abs(inputs.setpointRotations - inputs.positionRotations) <= kToleranceRotations;
+    return !Double.isNaN(commandedRotations)
+        && Math.abs(commandedRotations - inputs.positionRotations) <= kToleranceRotations;
   }
 
   private final SysIdRoutine sysId;
@@ -176,4 +197,9 @@ public class IntakeDeploy extends SubsystemBase {
         .finallyDo(io::stop)
         .withName("IntakeJog");
   }
+  /** What the battery pays for this mechanism, for PowerMonitor. */
+  public double supplyCurrentAmps() {
+    return inputs.supplyCurrentAmps;
+  }
+
 }

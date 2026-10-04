@@ -24,6 +24,7 @@ public class HoodIOTalonFX implements HoodIO {
   private final StatusSignal<?> velocity = motor.getVelocity();
   private final StatusSignal<?> appliedVolts = motor.getMotorVoltage();
   private final StatusSignal<?> statorCurrent = motor.getStatorCurrent();
+  private final StatusSignal<?> supplyCurrent = motor.getSupplyCurrent();
 
   private final MotionMagicVoltage positionRequest = new MotionMagicVoltage(0.0);
   private final NeutralOut neutralRequest = new NeutralOut();
@@ -63,6 +64,7 @@ public class HoodIOTalonFX implements HoodIO {
 
     BaseStatusSignal.setUpdateFrequencyForAll(
         50.0, position, velocity, appliedVolts, statorCurrent);
+    PhoenixUtil.publishMonitorSignals(supplyCurrent);
     motor.optimizeBusUtilization();
   }
 
@@ -74,6 +76,10 @@ public class HoodIOTalonFX implements HoodIO {
     inputs.velocityDegreesPerSec = velocity.getValueAsDouble() * 360.0;
     inputs.appliedVolts = appliedVolts.getValueAsDouble();
     inputs.statorCurrentAmps = statorCurrent.getValueAsDouble();
+    // Refreshed on its own: it arrives at the monitoring rate, and a slow analysis signal
+    // must not be able to report the motor as disconnected.
+    supplyCurrent.refresh();
+    inputs.supplyCurrentAmps = supplyCurrent.getValueAsDouble();
   }
 
   @Override

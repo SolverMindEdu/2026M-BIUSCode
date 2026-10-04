@@ -15,6 +15,7 @@ public interface IntakeDeployIO {
     public double setpointRotations = 0.0;
     public double appliedVolts = 0.0;
     public double statorCurrentAmps = 0.0;
+    public double supplyCurrentAmps = 0.0;
     /** True once the controller has rebooted while enabled -- its position zero is then wrong. */
     public boolean rebooted = false;
   }
@@ -29,6 +30,8 @@ public interface IntakeDeployIO {
   public default void setSoftLimitsEnabled(boolean enabled) {}
 
   public default void stop() {}
+
+  public default void setStatorLimit(double amps) {}
 
   public default void setGains(double kP, double kD, double kG, double kA) {}
 }

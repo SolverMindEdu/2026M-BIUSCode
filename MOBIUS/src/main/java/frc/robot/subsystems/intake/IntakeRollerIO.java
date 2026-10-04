@@ -12,6 +12,7 @@ public interface IntakeRollerIO {
     public boolean connected = false;
     public double appliedVolts = 0.0;
     public double statorCurrentAmps = 0.0;
+    public double supplyCurrentAmps = 0.0;
     public double velocityRotPerSec = 0.0;
   }
 
@@ -20,4 +21,6 @@ public interface IntakeRollerIO {
   public default void setPercent(double percent) {}
 
   public default void stop() {}
+
+  public default void setStatorLimit(double amps) {}
 }

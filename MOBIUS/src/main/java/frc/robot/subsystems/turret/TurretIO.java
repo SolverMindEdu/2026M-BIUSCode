@@ -11,6 +11,7 @@ public interface TurretIO {
   public static class TurretIOInputs {
     public boolean motorConnected = false;
     public boolean encoderConnected = false;
+    public double latencySecs = 0.0;
 
     public double encoderAbsoluteRotations = 0.0;
 
@@ -28,9 +29,9 @@ public interface TurretIO {
 
   public default void setVoltage(double volts) {}
 
-  public default void setPositionSetpoint(double degrees, double velocityDegPerSec) {}
-
-  public default void setProfiledSetpoint(double degrees) {}
+  /** softGains selects the blind-spot slot; staticVolts is added on top of the slot's output. */
+  public default void setPositionSetpoint(
+      double degrees, double velocityDegPerSec, boolean softGains, double staticVolts) {}
 
   public default void stop() {}
 

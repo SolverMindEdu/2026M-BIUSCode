@@ -11,7 +11,7 @@ public final class Constants {
 
   // Publishes every LoggedTunableNumber to /Tuning so gains can be changed live from
   // AdvantageScope. Turn OFF for competition -- the values become fixed and the traffic goes away.
-  public static final boolean kTuningMode = true;
+  public static final boolean kTuningMode = false;
 
   private static final Mode kSimMode = Mode.SIM;
 

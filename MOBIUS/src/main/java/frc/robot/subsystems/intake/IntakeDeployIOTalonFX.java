@@ -9,6 +9,7 @@ import static frc.robot.subsystems.intake.IntakeDeployConstants.*;
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
+import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.DynamicMotionMagicVoltage;
@@ -26,6 +27,7 @@ public class IntakeDeployIOTalonFX implements IntakeDeployIO {
   private final StatusSignal<?> velocity = motor.getVelocity();
   private final StatusSignal<?> appliedVolts = motor.getMotorVoltage();
   private final StatusSignal<?> statorCurrent = motor.getStatorCurrent();
+  private final StatusSignal<?> supplyCurrent = motor.getSupplyCurrent();
   private final StatusSignal<Boolean> rebooted = motor.getStickyFault_BootDuringEnable();
   private final StatusSignal<?> closedLoopReference = motor.getClosedLoopReference();
 
@@ -72,6 +74,7 @@ public class IntakeDeployIOTalonFX implements IntakeDeployIO {
     BaseStatusSignal.setUpdateFrequencyForAll(
         50.0, position, velocity, appliedVolts, statorCurrent, closedLoopReference);
     rebooted.setUpdateFrequency(4.0);
+    PhoenixUtil.publishMonitorSignals(supplyCurrent);
     motor.optimizeBusUtilization();
   }
 
@@ -86,6 +89,10 @@ public class IntakeDeployIOTalonFX implements IntakeDeployIO {
     inputs.setpointRotations = closedLoopReference.getValueAsDouble();
     inputs.appliedVolts = appliedVolts.getValueAsDouble();
     inputs.statorCurrentAmps = statorCurrent.getValueAsDouble();
+    // Refreshed on its own: it arrives at the monitoring rate, and a slow analysis signal
+    // must not be able to report the motor as disconnected.
+    supplyCurrent.refresh();
+    inputs.supplyCurrentAmps = supplyCurrent.getValueAsDouble();
     inputs.rebooted = rebooted.getValue();
   }
 
@@ -129,6 +136,18 @@ public class IntakeDeployIOTalonFX implements IntakeDeployIO {
     slot.kP = kP;
     slot.kD = kD;
     motor.getConfigurator().apply(slot);
+  }
+
+  @Override
+  public void setStatorLimit(double amps) {
+    motor
+        .getConfigurator()
+        .apply(
+            new CurrentLimitsConfigs()
+                .withStatorCurrentLimit(amps)
+                .withStatorCurrentLimitEnable(true)
+                .withSupplyCurrentLimit(kSupplyAmps)
+                .withSupplyCurrentLimitEnable(true));
   }
 
   @Override

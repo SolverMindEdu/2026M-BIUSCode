@@ -11,7 +11,6 @@ import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.VoltageOut;
@@ -38,7 +37,6 @@ public class TurretIOTalonFX implements TurretIO {
   private final StatusSignal<?> closedLoopReference = motor.getClosedLoopReference();
 
   private final VoltageOut voltageRequest = new VoltageOut(0.0);
-  private final MotionMagicVoltage profiledRequest = new MotionMagicVoltage(0.0);
   private final PositionVoltage positionRequest = new PositionVoltage(0.0);
   private final NeutralOut neutralRequest = new NeutralOut();
 
@@ -52,9 +50,9 @@ public class TurretIOTalonFX implements TurretIO {
 
     var motorConfig = new TalonFXConfiguration();
 
-    motorConfig.CurrentLimits.StatorCurrentLimit = kCalibrationStatorAmps;
+    motorConfig.CurrentLimits.StatorCurrentLimit = kStatorAmps;
     motorConfig.CurrentLimits.StatorCurrentLimitEnable = true;
-    motorConfig.CurrentLimits.SupplyCurrentLimit = kCalibrationStatorAmps;
+    motorConfig.CurrentLimits.SupplyCurrentLimit = kSupplyAmps;
     motorConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
 
     motorConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
@@ -68,7 +66,7 @@ public class TurretIOTalonFX implements TurretIO {
     motorConfig.SoftwareLimitSwitch.ForwardSoftLimitEnable = false;
     motorConfig.SoftwareLimitSwitch.ReverseSoftLimitEnable = false;
 
-    motorConfig.Slot0.kS = kS;
+    motorConfig.Slot0.kS = 0.0;
     motorConfig.Slot0.kV = kV;
     motorConfig.Slot0.kA = kA;
     motorConfig.Slot0.kP = kP;
@@ -76,14 +74,21 @@ public class TurretIOTalonFX implements TurretIO {
     motorConfig.Slot0.kD = kD;
     motorConfig.Slot0.kG = kG;
 
-    motorConfig.MotionMagic.MotionMagicCruiseVelocity = kCruiseVelocityRotPerSec;
-    motorConfig.MotionMagic.MotionMagicAcceleration = kAccelerationRotPerSecSq;
-    motorConfig.MotionMagic.MotionMagicJerk = kJerkRotPerSecCubed;
+    // Slot 1 is the blind-spot slot: same feedforward, softer feedback.
+    motorConfig.Slot1.kS = 0.0;
+    motorConfig.Slot1.kV = kV;
+    motorConfig.Slot1.kA = kA;
+    motorConfig.Slot1.kP = kP * kBlindSpotGainScale;
+    motorConfig.Slot1.kI = kI;
+    motorConfig.Slot1.kD = kD * Math.sqrt(kBlindSpotGainScale);
+    motorConfig.Slot1.kG = kG;
 
     motor.getConfigurator().apply(motorConfig);
 
+    // 100 Hz: at 50 Hz a reading can be a whole loop stale, which during a fast chassis spin is
+    // several degrees of turret error that never happened.
     BaseStatusSignal.setUpdateFrequencyForAll(
-        50.0,
+        100.0,
         rotorPosition,
         rotorVelocity,
         appliedVolts,
@@ -114,7 +119,12 @@ public class TurretIOTalonFX implements TurretIO {
     inputs.motorConnected = motorOk;
     inputs.encoderConnected = encoderOk;
 
-    inputs.positionDegrees = rotorPosition.getValueAsDouble() * 360.0;
+    // Extrapolate over the signal's own age so the feed gate judges where the turret is now,
+    // not where it was when the frame left the motor.
+    double latencySecs = rotorPosition.getTimestamp().getLatency();
+    inputs.positionDegrees =
+        (rotorPosition.getValueAsDouble() + rotorVelocity.getValueAsDouble() * latencySecs) * 360.0;
+    inputs.latencySecs = latencySecs;
     inputs.velocityDegreesPerSec = rotorVelocity.getValueAsDouble() * 360.0;
     inputs.setpointDegrees = closedLoopReference.getValueAsDouble() * 360.0;
     inputs.appliedVolts = appliedVolts.getValueAsDouble();
@@ -130,16 +140,14 @@ public class TurretIOTalonFX implements TurretIO {
   }
 
   @Override
-  public void setPositionSetpoint(double degrees, double velocityDegPerSec) {
+  public void setPositionSetpoint(
+      double degrees, double velocityDegPerSec, boolean softGains, double staticVolts) {
     motor.setControl(
         positionRequest
             .withPosition(degrees / 360.0)
-            .withVelocity(velocityDegPerSec / 360.0));
-  }
-
-  @Override
-  public void setProfiledSetpoint(double degrees) {
-    motor.setControl(profiledRequest.withPosition(degrees / 360.0));
+            .withVelocity(velocityDegPerSec / 360.0)
+            .withSlot(softGains ? 1 : 0)
+            .withFeedForward(staticVolts));
   }
 
   @Override

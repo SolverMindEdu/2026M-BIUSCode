@@ -20,26 +20,37 @@ public final class ShooterConstants {
 
   public static final double kGearRatio = 54.0 / 38.0;
 
-  public static final double kTargetRpm = 800.0;
+  /** Pre-spin speed: the left bumper toggle in teleop, and PrepShoot in auto. */
+  public static final double kSpinUpRpm = 1000.0;
   public static final double kToleranceRpm = 100.0;
 
-  public static final double kSpinUpSettleSecs = 0.5;
+  public static final double kSpinUpSettleSecs = 0.1;
 
-  public static final double kIdleRpm = 0.0;
+  /** Resting speed while enabled: most of the spin-up saved for a fraction of the current of a full hold. */
+  public static final double kIdleRpm = 600.0;
 
-  public static final double kTestRpm = 400.0;
+
 
   public static final double kStallCurrentAmps = 35.0;
 
   public static final double kStallRpm = 100.0;
 
-  public static final double kStatorAmps = 120.0;
-  public static final double kSupplyAmps = 80.0;
+  public static final double kStatorAmps = 100.0;
+  public static final double kSupplyAmps = 90.0;
 
+  // Trial settings: torque current is per motor, not battery current.
+  public static final boolean kUseBangBang = true;
+  public static final double kBangBangP = 999999.0;
+  public static final double kBangBangTorqueAmps = 120.0;
+  // Reference uses 20 rad/s; our mechanism velocities are RPM.
+  public static final double kTorqueControlToleranceRpm = 20.0 * 60.0 / (2.0 * Math.PI);
+  public static final double kTorqueControlHoldSecs = 0.020;
+
+  // Slot 0 voltage gains -- the live control path while kUseBangBang is false.
   public static final double kS = 0.272;
   public static final double kV = 0.1723;
   public static final double kA = 0.0;
-  public static final double kP = 0.4;
+  public static final double kP = 1.2;
   public static final double kI = 0.0;
   public static final double kD = 0.0;
 }

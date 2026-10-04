@@ -8,21 +8,24 @@ import static frc.robot.subsystems.ballpath.BallPathConstants.*;
 
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import java.util.function.DoubleSupplier;
+import java.util.function.BooleanSupplier;
 import org.littletonrobotics.junction.Logger;
 
 public class BallPath extends SubsystemBase {
   private final BallPathIO io;
   private final BallPathIOInputsAutoLogged inputs = new BallPathIOInputsAutoLogged();
 
-  private final double[] demand = new double[5];
-  private final int[] jamLoops = new int[5];
-  private final double[] clearUntilSecs = new double[5];
-  private final boolean[] clearing = new boolean[5];
+  /** Holds the indexer off until the tunnel has re-primed after an aim loss. */
+  private double indexerReadySecs = 0.0;
 
-  private double pulseStartSecs = 0.0;
-  private boolean loadStalled = false;
-  private int loadStallLoops = 0;
+
+  /** Indexer, tunnel and both singulators; the kicker has no entry and is never reversed. */
+  private static final int kClearableStages = 4;
+
+  private final double[] demand = new double[kClearableStages];
+  private final int[] jamLoops = new int[kClearableStages];
+  private final double[] clearUntilSecs = new double[kClearableStages];
+  private final boolean[] clearing = new boolean[kClearableStages];
 
   public BallPath(BallPathIO io) {
     this.io = io;
@@ -43,7 +46,7 @@ public class BallPath extends SubsystemBase {
 
   private void updateJamDetection() {
     double now = Logger.getTimestamp() / 1.0e6;
-    for (int i = 0; i < demand.length; i++) {
+    for (int i = 0; i < kClearableStages; i++) {
       clearing[i] = now < clearUntilSecs[i];
 
       boolean stalled =
@@ -61,88 +64,92 @@ public class BallPath extends SubsystemBase {
     Logger.recordOutput("BallPath/Clearing", clearing);
   }
 
+  /** A short reverse once a stage has stalled; speeds are untouched either way. */
   private double withJamClear(int index, double percent) {
     demand[index] = percent;
     return clearing[index] && Math.abs(percent) > 0.01 ? -percent : percent;
   }
 
-  public Command loadIndexer() {
+  /** Runs the tunnel and kicker while aim is ready; the kicker keeps spinning regardless. */
+  public Command runAll(BooleanSupplier aimReady) {
+    return feedWhen(aimReady, kIndexerPercent).withName("BallPathMovingShotFeed");
+  }
+
+  /** Everything except the indexer, so the tunnel reaches speed before any fuel is pushed in. */
+  public Command primeStages(BooleanSupplier aimReady) {
+    return feedWhen(aimReady, 0.0).withName("BallPathMovingShotPrimeStages");
+  }
+
+  private Command feedWhen(BooleanSupplier aimReady, double indexerPercent) {
+    return run(() -> {
+          double now = Logger.getTimestamp() / 1.0e6;
+          boolean aimed = aimReady.getAsBoolean();
+          if (!aimed) {
+            // Every resume re-primes, so the tunnel is already turning before fuel arrives.
+            indexerReadySecs = now + kStagePrimeSecs;
+          }
+          boolean feed = aimed && now >= indexerReadySecs;
+
+          io.setIndexer(withJamClear(0, feed ? indexerPercent : 0.0));
+          // Transport runs for the whole trigger hold; stopping it left the singulator having to
+          // restart against a packed column, which is what jams it.
+          io.setVerticalRoller(withJamClear(1, kVerticalRollerPercent));
+          // Slowed, not stopped, while the indexer is held: see kSingulatorHoldScale.
+          double singulator = kSingulatorTopPercent * (feed ? 1.0 : kSingulatorHoldScale);
+          io.setSingulatorTop(withJamClear(2, singulator));
+          io.setSingulatorBottom(withJamClear(3, singulator));
+          // Never handed back mid-shot: while the trigger is held the kicker spins, full stop.
+          io.setFeedRotPerSec(kFeedRotPerSec);
+
+          Logger.recordOutput("BallPath/Aimed", aimed);
+          Logger.recordOutput("BallPath/IndexerFeeding", feed);
+          Logger.recordOutput("BallPath/IndexerPercent", feed ? indexerPercent : 0.0);
+          Logger.recordOutput("BallPath/SingulatorPercent", singulator);
+        });
+  }
+
+  /** Every stage backwards on the driver's command; nothing else ever runs in reverse. */
+  public Command reverseAll() {
     return run(() -> {
           java.util.Arrays.fill(demand, 0.0);
+          io.setIndexer(-kIndexerPercent);
+          io.setVerticalRoller(-kVerticalRollerPercent);
+          io.setSingulatorTop(-kSingulatorTopPercent);
+          io.setSingulatorBottom(-kSingulatorTopPercent);
+          io.setFeedRotPerSec(-kFeedRotPerSec);
+        })
+        .finallyDo(this::stopAll)
+        .withName("BallPathReverseAll");
+  }
 
-          if (!loadStalled) {
-            boolean loaded = inputs.statorCurrentAmps[0] > kIntakeLoadStallAmps;
-            loadStallLoops = loaded ? loadStallLoops + 1 : 0;
-            if (loadStallLoops >= kIntakeLoadStallLoops) {
-              loadStalled = true;
-            }
-          }
-
-          io.setIndexer(loadStalled ? 0.0 : pulsedLoadPercent());
+  /** Only the kicker, which needs about 180 ms to reach speed; nothing moves a ball forward yet. */
+  public Command prime() {
+    return run(() -> {
+          java.util.Arrays.fill(demand, 0.0);
+          io.setIndexer(0.0);
           io.setVerticalRoller(0.0);
           io.setSingulatorTop(0.0);
           io.setSingulatorBottom(0.0);
-          io.setFeedRotPerSec(0.0);
-          Logger.recordOutput("BallPath/LoadStalled", loadStalled);
+          io.setFeedRotPerSec(kFeedRotPerSec);
         })
-        .beforeStarting(
-            () -> {
-              loadStalled = false;
-              loadStallLoops = 0;
-              pulseStartSecs = Logger.getTimestamp() / 1.0e6;
-            })
-        .withName("BallPathLoad");
+        .withName("BallPathPrime");
   }
 
-  private double pulsed(double high, double low, double periodSecs) {
-    double elapsed = Logger.getTimestamp() / 1.0e6 - pulseStartSecs;
-    boolean fastPhase = ((long) Math.floor(elapsed / periodSecs)) % 2 == 0;
-    return fastPhase ? high : low;
+  public boolean isConnected() {
+    for (boolean stage : inputs.connected) {
+      if (!stage) {
+        return false;
+      }
+    }
+    return true;
+  }
+  /** Every stage together, which is what the battery sees from this mechanism. */
+  public double supplyCurrentAmps() {
+    double total = 0.0;
+    for (double amps : inputs.supplyCurrentAmps) {
+      total += amps;
+    }
+    return total;
   }
 
-  private double pulsedLoadPercent() {
-    return pulsed(kIntakeLoadHighPercent, kIntakeLoadLowPercent, kIntakeLoadPulsePeriodSecs);
-  }
-
-  private double pulsedIndexerPercent() {
-    return pulsed(kIndexerHighPercent, kIndexerLowPercent, kIndexerPulsePeriodSecs);
-  }
-
-  public Command runAll() {
-    return runStages(
-            this::pulsedIndexerPercent,
-            kVerticalRollerPercent,
-            kSingulatorTopPercent,
-            kSingulatorBottomPercent,
-            () -> kFeedRotPerSec)
-        .beforeStarting(() -> pulseStartSecs = Logger.getTimestamp() / 1.0e6)
-        .withName("BallPathRunAll");
-  }
-
-  public Command runIndexer() {
-    return runStages(this::pulsedIndexerPercent, 0.0, 0.0, 0.0, () -> 0.0)
-        .beforeStarting(() -> pulseStartSecs = Logger.getTimestamp() / 1.0e6)
-        .withName("BallPathIndexerOnly");
-  }
-
-  public Command runSingulator() {
-    return runStages(() -> 0.0, 0.0, kSingulatorTopPercent, kSingulatorBottomPercent, () -> 0.0)
-        .withName("BallPathSingulatorOnly");
-  }
-
-  private Command runStages(
-      DoubleSupplier indexer,
-      double verticalRoller,
-      double singulatorTop,
-      double singulatorBottom,
-      DoubleSupplier feed) {
-    return run(() -> {
-          io.setIndexer(withJamClear(0, indexer.getAsDouble()));
-          io.setVerticalRoller(withJamClear(1, verticalRoller));
-          io.setSingulatorTop(withJamClear(2, singulatorTop));
-          io.setSingulatorBottom(withJamClear(3, singulatorBottom));
-          io.setFeedRotPerSec(withJamClear(4, feed.getAsDouble()));
-          Logger.recordOutput("BallPath/IndexerDemand", indexer.getAsDouble());
-        });
-  }
 }

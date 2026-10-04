@@ -18,6 +18,16 @@ public final class IntakeRollerConstants {
 
   public static final double kShootPercent = 0.4;
 
-  public static final double kStatorAmps = 60.0;
+  /** Stator limit while assisting a shot. Intaking keeps the full limit for actually grabbing fuel. */
+  public static final double kShootStatorAmps = 30.0;
+
+  /** Backwards kick on the first deploy of a match, to clear anything sitting in the rollers. */
+  public static final double kPurgePercent = 0.4;
+
+  public static final double kPurgeSecs = 0.3;
+
+  public static final double kStatorAmps = 90.0;
+  // Raised with the stator limit: at 120 A stator the roller draws ~39 A supply, so a 40 A
+  // supply limit would throttle the voltage before the stator limit was ever reached.
   public static final double kSupplyAmps = 60.0;
 }
